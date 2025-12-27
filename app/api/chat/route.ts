@@ -59,6 +59,15 @@ export async function POST(request: NextRequest) {
       conversationHistory
     )
 
+    // Debug logging
+    console.log('=== CHAT API DEBUG ===')
+    console.log('User message:', message)
+    console.log('Tool calls made:', toolCalls.length)
+    toolCalls.forEach((tc, i) => {
+      console.log(`Tool ${i + 1}:`, tc.tool, JSON.stringify(tc.result))
+    })
+    console.log('======================')
+
     // Create message objects
     const userMessage: Message = {
       id: uuid(),

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { MessageBubble } from './message-bubble'
 import { ChatInput } from './chat-input'
 import { ToolResultCard } from './tool-result-card'
@@ -15,7 +16,28 @@ export function ChatWindow({ conversationId: initialConversationId, initialMessa
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [isLoading, setIsLoading] = useState(false)
   const [conversationId, setConversationId] = useState(initialConversationId)
+  const [showCreateButton, setShowCreateButton] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
+
+  // Detect if the last message looks like a goal proposal
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1]
+    if (lastMessage?.role === 'assistant') {
+      // Check if message contains goal proposal patterns
+      const content = lastMessage.content.toLowerCase()
+      const hasGoalProposal = (
+        (content.includes('milestone') && content.includes('target')) ||
+        (content.includes("here's what i'm thinking") && content.includes('goal')) ||
+        (content.includes('does this look right') || content.includes('shall i create') || content.includes('ready to save'))
+      )
+      // Don't show if goal was already created
+      const goalCreated = lastMessage.tool_calls?.some(tc => tc.tool === 'create_goal')
+      setShowCreateButton(hasGoalProposal && !goalCreated)
+    } else {
+      setShowCreateButton(false)
+    }
+  }, [messages])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -52,6 +74,11 @@ export function ChatWindow({ conversationId: initialConversationId, initialMessa
 
       setConversationId(data.conversation_id)
       setMessages(prev => [...prev, data.message])
+
+      // If a goal was created, refresh after a short delay
+      if (data.tool_calls?.some((tc: { tool: string }) => tc.tool === 'create_goal')) {
+        setTimeout(() => router.refresh(), 500)
+      }
     } catch (error) {
       console.error('Error sending message:', error)
       // Add error message
@@ -64,6 +91,11 @@ export function ChatWindow({ conversationId: initialConversationId, initialMessa
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleCreateGoal = () => {
+    setShowCreateButton(false)
+    sendMessage("Yes, please create this goal now!")
   }
 
   return (
@@ -103,6 +135,20 @@ export function ChatWindow({ conversationId: initialConversationId, initialMessa
             </div>
           </div>
         )}
+
+        {/* Create Goal Button */}
+        {showCreateButton && !isLoading && (
+          <div className="flex justify-center my-4">
+            <button
+              onClick={handleCreateGoal}
+              className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg transition-all transform hover:scale-105 flex items-center gap-2"
+            >
+              <span className="text-xl">+</span>
+              Create This Goal
+            </button>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
